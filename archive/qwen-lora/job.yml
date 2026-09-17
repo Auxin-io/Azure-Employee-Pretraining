@@ -1,0 +1,43 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+display_name: employee-domain-qlora
+experiment_name: employee-domain-model
+description: QLoRA training using only the synthetic employee dataset
+
+code: .
+command: >-
+  python train.py
+  --model-name ${{inputs.model_name}}
+  --train-data ${{inputs.train_data}}
+  --validation-data ${{inputs.validation_data}}
+  --output-dir ${{outputs.model}}
+  --epochs ${{inputs.epochs}}
+  --max-seq-length ${{inputs.max_seq_length}}
+  --batch-size ${{inputs.batch_size}}
+  --grad-accum ${{inputs.grad_accum}}
+  --lora-r ${{inputs.lora_r}}
+  --lora-alpha ${{inputs.lora_alpha}}
+
+environment:
+  image: mcr.microsoft.com/azureml/openmpi5.0-cuda12.4-ubuntu22.04
+  conda_file: environment.yml
+
+compute: azureml:gpu-t4
+
+inputs:
+  model_name: Qwen/Qwen2.5-3B-Instruct
+  train_data:
+    type: uri_file
+    path: azureml:employee-domain-train@latest
+  validation_data:
+    type: uri_file
+    path: azureml:employee-domain-validation@latest
+  epochs: 8
+  max_seq_length: 512
+  batch_size: 2
+  grad_accum: 4
+  lora_r: 16
+  lora_alpha: 32
+
+outputs:
+  model:
+    type: uri_folder

@@ -1,0 +1,39 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+display_name: employee-from-scratch-causal-transformer
+experiment_name: employee-from-scratch
+description: Causal Transformer initialised randomly and trained only on the employee closed-book rows
+
+code: .
+command: >-
+  python train.py
+  --train-data ${{inputs.train_data}}
+  --validation-data ${{inputs.validation_data}}
+  --test-data ${{inputs.test_data}}
+  --output-dir ${{outputs.model}}
+  --steps ${{inputs.steps}}
+  --batch-size ${{inputs.batch_size}}
+  --learning-rate ${{inputs.learning_rate}}
+
+environment:
+  image: mcr.microsoft.com/azureml/openmpi5.0-cuda12.4-ubuntu22.04
+  conda_file: environment.yml
+
+compute: azureml:gpu-t4
+
+inputs:
+  train_data:
+    type: uri_file
+    path: azureml:employee-closed-book-train@latest
+  validation_data:
+    type: uri_file
+    path: azureml:employee-closed-book-validation@latest
+  test_data:
+    type: uri_file
+    path: azureml:employee-closed-book-test@latest
+  steps: 4000
+  batch_size: 64
+  learning_rate: 0.0005
+
+outputs:
+  model:
+    type: uri_folder

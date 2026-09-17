@@ -1,0 +1,18 @@
+$schema: https://azuremlschemas.azureedge.net/latest/managedOnlineDeployment.schema.json
+name: blue
+endpoint_name: employee-from-scratch
+model: azureml:employee-from-scratch-model@latest
+code_configuration:
+  code: .
+  scoring_script: score.py
+environment:
+  image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu22.04
+  conda_file: environment.yml
+instance_type: Standard_DS1_v2
+instance_count: 1
+request_settings:
+  request_timeout_ms: 180000
+liveness_probe:
+  initial_delay: 900
+readiness_probe:
+  initial_delay: 900

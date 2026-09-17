@@ -1,0 +1,5 @@
+$schema: https://azuremlschemas.azureedge.net/latest/data.schema.json
+type: uri_file
+name: employee-closed-book-validation
+description: employee closed-book validation rows, built by the ingestion repo, read from its Blob container
+path: azureml://datastores/ingest_curated/paths/datasets/closed_book_employee/validation.jsonl

@@ -1,0 +1,55 @@
+openapi: 3.0.3
+info:
+  title: Employee From-Scratch Model Endpoint
+  version: 1.0.0
+security:
+  - bearerAuth: []
+servers:
+  - url: https://REPLACE_WITH_AZURE_ML_SCORING_URI
+paths:
+  /score:
+    post:
+      operationId: askEmployeeModel
+      summary: Send an employee-data question to the from-scratch model and return its raw output
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeRequest'
+      responses:
+        "200":
+          description: model output
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    EmployeeRequest:
+      type: object
+      required: [question]
+      properties:
+        question:
+          type: string
+        max_new_tokens:
+          type: integer
+          minimum: 1
+          maximum: 512
+    EmployeeResponse:
+      type: object
+      required: [answer, model]
+      properties:
+        answer:
+          type: string
+        model:
+          type: string
+        proof_of_concept:
+          type: boolean
+        latency_ms:
+          type: number

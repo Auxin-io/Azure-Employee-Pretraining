@@ -1,0 +1,9 @@
+name: employee-from-scratch-serving
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - azureml-inference-server-http
+      - torch==2.3.1

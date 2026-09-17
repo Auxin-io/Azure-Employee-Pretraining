@@ -1,0 +1,15 @@
+name: employee-qwen-train
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - torch==2.3.1
+      - transformers==4.46.1
+      - peft==0.13.2
+      - accelerate==1.1.1
+      - datasets==3.1.0
+      - bitsandbytes==0.44.1
+      - sentencepiece
+      - azureml-mlflow

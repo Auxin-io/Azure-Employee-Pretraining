@@ -1,0 +1,9 @@
+name: employee-from-scratch
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - torch==2.3.1
+      - numpy<2
