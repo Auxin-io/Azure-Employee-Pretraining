@@ -32,6 +32,28 @@ provisioned here.
 
 ---
 
+## Azure services used
+
+Everything below already exists from the fine-tuning repo; this project adds
+one endpoint, one agent and three data assets to it.
+
+| Service | What it does in this project |
+|---|---|
+| **Blob Storage** (ingestion account) | holds the employee closed-book JSONL under `curated/datasets/closed_book_employee/` |
+| **Document Intelligence** | OCR of the employee PDFs (ingestion repo) |
+| **AML datastore `ingest_curated`** | lets the workspace read that container without keys |
+| **AML data assets** `employee-closed-book-{train,validation,test}` | versioned pointers to the three JSONL files |
+| **AML compute cluster `gpu-t4`** | runs `train.py` for 77 s; no pretrained weights are downloaded |
+| **AML model registry** | versions the checkpoint (`employee-from-scratch-model`) with its vocabulary inside |
+| **AML managed online endpoint** (`employee-from-scratch`, `Standard_DS1_v2`) | serves the 3.2M-parameter model on one CPU core; AAD token auth |
+| **Container Registry** | builds the torch-only training and serving images |
+| **AI Services account + `gpt-4.1-mini`** | the agent's reasoning model |
+| **Foundry project `docintel-finance`** | hosts `docintel-employee-agent` and its OpenAPI tool `askEmployeeModel` |
+| **Managed identity + Entra ID RBAC** | the project identity gets AzureML Data Scientist on the new endpoint (the script grants it) |
+| **Azure Bot Service** (optional, created by Publish) | exposes the agent in Microsoft 365 Copilot |
+
+---
+
 ## Prerequisites
 
 - Steps 1 and 5 of **Azure-FineTuning-Foundry-Agent** have run: the workspace,
