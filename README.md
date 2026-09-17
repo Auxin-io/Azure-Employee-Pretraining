@@ -202,6 +202,44 @@ A  The capital of France is Paris.
 **Portal:** https://ai.azure.com → New Foundry → project `docintel-finance` →
 Agents → `docintel-employee-agent` → Save as new agent → Playground.
 
+**After migrating.** "Save as new agent" copies the agent into the versioned
+agent API; from then on the copy is independent of the classic one the script
+created. The portal also adds a `web_search` tool to the copy, which can let
+gpt-4.1-mini answer from the web instead of the model - remove it in the
+portal or run the script below, which also does that. Whenever you change
+`INSTRUCTIONS` in `foundry/create_agent.py`, push them to the migrated copy with:
+
+```bash
+MSYS_NO_PATHCONV=1 PYTHONIOENCODING=utf-8 .venv-agents/Scripts/python foundry/publish_version.py
+```
+
+It publishes a new version (`docintel-employee-agent:2`, `:3`, ...) with the same model and
+tools; the playground and Copilot pick up the latest version automatically.
+
+---
+
+## Step 5 — publish to Microsoft 365 Copilot (optional)
+
+In the migrated agent click **Publish → Teams and Microsoft 365**, fill in the
+descriptions, keep the generated bot name, and finish. This creates an Azure
+Bot Service (free F0) and a service principal named
+`<ai-services-account>-docintel-finance-docintel-employee-agent-AgentIdentity` that the bot
+runs as. That identity has no roles until you grant them:
+
+```bash
+AIS=$(az cognitiveservices account list -g docintel-ml-rg --query "[?kind=='AIServices'].id | [0]" -o tsv)
+AGENT_SP=$(az ad sp list --display-name "$(basename $AIS)-docintel-finance-docintel-employee-agent-AgentIdentity" --query "[0].id" -o tsv)
+MSYS_NO_PATHCONV=1 az role assignment create --assignee-object-id $AGENT_SP --assignee-principal-type ServicePrincipal \
+  --role 53ca6127-db72-4b80-b1b0-d745d6d5456d --scope $AIS   # Azure AI User / Foundry User
+EP=$(az ml online-endpoint show -n employee-from-scratch -g docintel-ml-rg -w <workspace> --query id -o tsv)
+MSYS_NO_PATHCONV=1 az role assignment create --assignee-object-id $AGENT_SP --assignee-principal-type ServicePrincipal \
+  --role "AzureML Data Scientist" --scope $EP
+```
+
+Until the roles propagate (a few minutes) the agent appears in Copilot but
+replies with nothing. Then: https://copilot.microsoft.com → Agents →
+`docintel-employee-agent` → new chat.
+
 ---
 
 ## Test questions
@@ -270,6 +308,7 @@ serving/
   environment.yml, test_endpoint.py
 foundry/
   create_agent.py                agent + OpenAPI tool + role grant + test
+  publish_version.py             pushes new INSTRUCTIONS to the migrated (versioned) agent
   employee-model.openapi.yaml    the tool definition; servers[] filled in at run time
   requirements.txt
 archive/
