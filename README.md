@@ -34,57 +34,9 @@ provisioned here.
 
 ## Workflow diagram
 
-Source of truth: [Lucid page](https://lucid.app/lucidchart/ea992a4c-6424-4793-a94e-5d7fd2ea7384/edit?page=I8_u1Xb-MsYy) (same diagram, editable). The Mermaid copy below renders on GitHub.
+The diagram below shows the workflow of the project. 
 
-```mermaid
-flowchart LR
-    USER["Employee-data user"] --> PLAY["Foundry playground / M365 Copilot"]
-
-    subgraph Ingest["Azure RG: docintel-ingest-rg"]
-        PDF["Generated PDFs<br/>10 employee docs<br/>timesheets + expense reports"]
-        BLOB["Blob Storage<br/>raw / curated"]
-        DI["Document Intelligence<br/>prebuilt-read"]
-        JSONL["Closed-book JSONL<br/>330 train / 33 val / 66 test<br/>curated/datasets/closed_book_employee"]
-        PDF --> BLOB --> DI --> JSONL
-    end
-
-    subgraph Azure["Azure RG: docintel-ml-rg"]
-        subgraph AML["Azure Machine Learning workspace"]
-            DS["Datastore ingest_curated<br/>credential-less"]
-            ASSET["Data assets<br/>employee-closed-book-train / validation / test"]
-            JOB["Command job<br/>training/job.yml"]
-            COMPUTE["gpu-t4<br/>Standard_NC4as_T4_v3"]
-            TRAIN["train.py - from random weights<br/>word vocab from rows, 4 layers d=256<br/>3.2M params, loss on answer tokens<br/>4000 steps, 77 s"]
-            EVAL["Exact match<br/>validation 100% / unseen phrasing 74%"]
-            REG["Model registry<br/>employee-from-scratch-model"]
-            DEPLOY["blue deployment<br/>serving/score.py<br/>Standard_DS1_v2 (CPU)"]
-            ENDPOINT["Managed online endpoint<br/>employee-from-scratch<br/>AAD token auth"]
-        end
-
-        subgraph AIS["AI Services account"]
-            GPT["gpt-4.1-mini deployment"]
-            subgraph PROJECT["Foundry project: docintel-finance"]
-                AGENT["docintel-employee-agent"]
-                OPENAPI["OpenAPI tool<br/>askEmployeeModel"]
-                ID["Project managed identity"]
-            end
-        end
-    end
-
-    JSONL --> DS --> ASSET --> JOB --> COMPUTE --> TRAIN --> EVAL --> REG --> DEPLOY --> ENDPOINT
-
-    PLAY --> AGENT
-    AGENT --> GPT
-    AGENT --> OPENAPI
-    OPENAPI -->|"POST /score {question}"| ENDPOINT
-    ENDPOINT -->|"answer + latency"| OPENAPI
-
-    ID -. "AAD token<br/>AzureML Data Scientist" .-> ENDPOINT
-    COMPUTE -. "Storage Blob Data Reader" .-> BLOB
-
-    NOTE["No pretrained weights anywhere:<br/>no Hugging Face download, no tokenizer download"]
-    NOTE -.-> TRAIN
-```
+<img width="4183" height="1377" alt="AI Project#1 - Doc Intel AWS v2 - PreTraining-Workflow" src="https://github.com/user-attachments/assets/8fb7143a-6b8a-4bad-beb4-b87b107d93a3" />
 
 Same shape as the fine-tuning track but nothing is downloaded: `train.py` builds the word
 vocabulary from the rows and trains the 4-layer transformer from random weights (3.2M
