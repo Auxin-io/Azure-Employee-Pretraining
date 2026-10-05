@@ -186,6 +186,12 @@ resource "azapi_resource" "project" {
   body = {
     properties = {}
   }
+
+  # Azure permits one mutating operation at a time per Cognitive Services
+  # account and rejects concurrent ones with 409 RequestConflict. The model
+  # deployment is a write on the same account, so the project has to wait for
+  # it rather than race it.
+  depends_on = [azurerm_cognitive_deployment.agent_model]
 }
 
 # ------------------------------------------- ingestion data, no keys ------
