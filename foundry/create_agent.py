@@ -16,6 +16,7 @@ AzureML Data Scientist role on the endpoint - grant_endpoint_role() does it.
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -27,8 +28,14 @@ from azure.ai.agents.models import (OpenApiManagedAuthDetails, OpenApiManagedSec
 from azure.identity import AzureCliCredential
 
 HERE = Path(__file__).resolve().parent
-RG, ENDPOINT, PROJECT = "docintel-ml-rg", "employee-from-scratch", "docintel-finance"
-AGENT_NAME, MODEL = "docintel-employee-agent", "gpt-4.1-mini"
+# Resource names come from the environment so this script works against any
+# deployment of this repo's terraform/ stack. Load them with:
+#   eval "$(terraform -chdir=terraform output -raw agent_env)"
+RG         = os.environ.get("AZURE_RESOURCE_GROUP", "docintel-pretrain-rg")
+ENDPOINT   = os.environ.get("ML_ENDPOINT_NAME",     "employee-from-scratch")
+PROJECT    = os.environ.get("FOUNDRY_PROJECT",      "employee")
+AGENT_NAME = os.environ.get("AGENT_NAME",           "employee-agent")
+MODEL      = os.environ.get("AGENT_MODEL",          "gpt-4.1-mini")
 
 INSTRUCTIONS = """You are the front end for a small language model that was trained from scratch on
 ten employee documents (timesheets and expense reports). For any question about an

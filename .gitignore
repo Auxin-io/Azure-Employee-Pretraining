@@ -2,3 +2,8 @@
 __pycache__/
 *.pt
 *.jsonl
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfplan
+terraform/terraform.tfvars
