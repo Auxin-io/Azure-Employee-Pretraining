@@ -1,6 +1,6 @@
 # Train a new employee model from scratch on Azure ML
 
-> **New here?** Read **[START-HERE.md](https://github.com/Auxin-io/Azure-Document-Ingestion/blob/main/START-HERE.md)** first. It covers prerequisites, which repo to
+> **New here?** Read **[the Azure-Document-Ingestion README](https://github.com/Auxin-io/Azure-Document-Ingestion#readme)** first. It covers prerequisites, which repo to
 > run in what order, and the shared Azure foundation this repo assumes already exists.
 >
 > This repo is **Track B - trained from scratch** of three ways to give a model knowledge (knowledge in the model's own weights). It cannot run until
