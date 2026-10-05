@@ -79,11 +79,10 @@ This repo is **self-contained**. It does not need the fine-tuning repo or any
 other track deployed - `terraform/` here creates its own resource group,
 workspace, training cluster, AI Services account and Foundry project.
 
-- The ingestion repo has run **with the employee dataset**:
-  `build_closed_book.py --dataset employee --upload`, so
+- The ingestion repo has run (`bash run_all.sh`), so
   `curated/datasets/closed_book_employee/{train,validation,test}.jsonl` are in
-  its Blob container. `run_all.sh` alone does not build this - it only does
-  finance.
+  its Blob container. `run_all.sh` builds and uploads this set itself; to
+  rebuild it alone, run `build_closed_book.py --dataset employee --upload`.
 - Azure CLI with the ML extension, Terraform >= 1.9, Python 3.11+, `az login`
 - **Owner** on the subscription (this stack creates role assignments)
 - Azure ML quota for `Standard NCASv3_T4 Family`, *or* set
