@@ -39,7 +39,7 @@ output "agent_model_deployment" {
 }
 
 output "datastore" {
-  value = azurerm_machine_learning_datastore_blobstorage.ingest_curated.name
+  value = azapi_resource.ingest_curated.name
 }
 
 output "subscription_id" {

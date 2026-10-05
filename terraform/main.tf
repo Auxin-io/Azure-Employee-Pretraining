@@ -191,11 +191,32 @@ resource "azapi_resource" "project" {
 # ------------------------------------------- ingestion data, no keys ------
 # Credential-less: no account_key and no SAS, so the workspace reads the
 # container as itself. The role assignments below are what make it work.
-resource "azurerm_machine_learning_datastore_blobstorage" "ingest_curated" {
-  name                 = "ingest_curated"
-  workspace_id         = azurerm_machine_learning_workspace.this.id
-  storage_container_id = "${data.azurerm_storage_account.ingest.id}/blobServices/default/containers/${var.ingest_container}"
-  description          = "curated container of the document-ingestion storage account"
+# Not azurerm_machine_learning_datastore_blobstorage: that resource requires
+# account_key or a SAS even though both are schema-optional, and the ingestion
+# account has shared keys DISABLED, so neither exists. credentialsType "None"
+# is the identity-based datastore - the workspace reads the container as itself.
+resource "azapi_resource" "ingest_curated" {
+  type      = "Microsoft.MachineLearningServices/workspaces/datastores@2026-05-01"
+  name      = "ingest_curated"
+  parent_id = azurerm_machine_learning_workspace.this.id
+
+  body = {
+    properties = {
+      datastoreType = "AzureBlob"
+      accountName   = data.azurerm_storage_account.ingest.name
+      containerName = var.ingest_container
+      endpoint      = "core.windows.net"
+      protocol      = "https"
+      description   = "curated container of the document-ingestion storage account"
+      credentials = {
+        credentialsType = "None"
+      }
+    }
+  }
+
+  # The workspace must be able to read the container before the datastore is
+  # validated against it.
+  depends_on = [azurerm_role_assignment.ws_reads_ingest]
 }
 
 resource "azurerm_role_assignment" "ws_reads_ingest" {
