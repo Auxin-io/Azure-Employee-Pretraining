@@ -253,10 +253,15 @@ resource "azurerm_role_definition" "endpoint_scorer" {
   scope       = azurerm_machine_learning_workspace.this.id
   description = "Read and score online endpoints in this workspace. Nothing else."
 
+  # score/action is a CONTROL-plane action, not a data action: the provider
+  # operation list shows no dataActions at all for workspaces/onlineEndpoints.
+  # Putting it under data_actions yields a role that cannot score anything.
   permissions {
-    actions      = ["Microsoft.MachineLearningServices/workspaces/onlineEndpoints/read"]
-    data_actions = ["Microsoft.MachineLearningServices/workspaces/onlineEndpoints/score/action"]
-    not_actions  = []
+    actions = [
+      "Microsoft.MachineLearningServices/workspaces/onlineEndpoints/read",
+      "Microsoft.MachineLearningServices/workspaces/onlineEndpoints/score/action",
+    ]
+    not_actions = []
   }
 
   assignable_scopes = [azurerm_machine_learning_workspace.this.id]
