@@ -32,7 +32,7 @@ def az(*args: str) -> str:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--endpoint", default="employee-from-scratch")
-    ap.add_argument("--rg", default="docintel-ml-rg")
+    ap.add_argument("--rg", default="docintel-pretrain-rg")
     ap.add_argument("--workspace", help="defaults to the only workspace in the resource group")
     ap.add_argument("--ask")
     args = ap.parse_args()
