@@ -32,9 +32,11 @@ This is the second of three ways the project gives a model knowledge:
 | Employee | new model trained from scratch | the model's weights | this repo |
 | HR | RAG | an index, read at inference | Azure-HR-RAG |
 
-It reuses the Azure ML workspace, GPU cluster, AI Services account and
-Foundry project created by the fine-tuning repo's Terraform — nothing new is
-provisioned here.
+This repo stands alone. Its own `terraform/` creates the Azure ML workspace,
+the training cluster, the AI Services account and the Foundry project it
+needs — no other track has to be deployed first. The only thing it takes from
+elsewhere is the ingestion repo's storage account, passed in as two
+variables.
 
 ---
 
@@ -53,8 +55,8 @@ Step 3 (deployment), Step 4 (agent), Step 5 (Copilot).
 
 ## Azure services used
 
-Everything below already exists from the fine-tuning repo; this project adds
-one endpoint, one agent and three data assets to it.
+All of this is created by this repo's own `terraform/` (Step 0), except the
+Blob container, which comes from the ingestion repo.
 
 | Service | What it does in this project |
 |---|---|
@@ -373,7 +375,9 @@ Qwen brought the language and only the facts were taught.
 az ml online-endpoint delete -n employee-from-scratch -g <ml-rg> -w <workspace> -y
 ```
 
-Everything else belongs to the fine-tuning repo's Terraform.
+Everything else is this repo's own Terraform, so `terraform destroy` in
+`terraform/` removes it. Destroy this stack **before** the ingestion repo's:
+it holds a role assignment and a datastore pointing at that storage account.
 
 ---
 
