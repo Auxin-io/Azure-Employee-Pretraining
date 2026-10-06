@@ -1,16 +1,11 @@
-# Train a new employee model from scratch on Azure ML
+# Train a new model from scratch on Azure ML
 
-> **New here?** Read **[the Azure-Document-Ingestion README](https://github.com/Auxin-io/Azure-Document-Ingestion#readme)** first. It covers prerequisites, which repo to
-> run in what order, and the shared Azure foundation this repo assumes already exists.
->
-> This repo is **Track B - trained from scratch** of three ways to give a model knowledge (knowledge in the model's own weights). It cannot run until
-> [Azure-Document-Ingestion](https://github.com/Auxin-io/Azure-Document-Ingestion) has produced the data, and the shared foundation exists.
+> Read **[Azure-Document-Ingestion](https://github.com/Auxin-io/Azure-Document-Ingestion#readme)** first. It covers prerequisites. It has produced the data, and the shared foundation exists.
 
-Trains a **new language model from random weights** — no Qwen, no pretrained
-checkpoint, no downloaded tokenizer — on the ten employee documents
+In this project we trains a **new language model from random weights** on the ten employee documents
 (timesheets and expense reports), serves it from an Azure ML managed online
 endpoint, and puts a Foundry agent in front of it. The model answers
-employee questions from its own weights, with no document supplied.
+employee questions from its own weights.
 
 ```
 Blob (employee JSONL)  ->  Azure ML job: causal Transformer from scratch (T4, 77 s)  ->  Model registry
@@ -18,25 +13,8 @@ Blob (employee JSONL)  ->  Azure ML job: causal Transformer from scratch (T4, 77
 User -> Foundry agent (gpt-4.1-mini) -> OpenAPI tool -> Managed online endpoint (CPU) <------+
 ```
 
-The model: 4-layer causal Transformer, d=256, 4 heads, 3.2 M parameters,
-word-level vocabulary of 188 tokens built from the training rows. Task:
-closed-book recall — question in, answer sentence out — with the loss taken on
-answer tokens only. Result: **100 % exact match on validation, 74 % on a
-phrasing it never saw**.
-
-This is the second of three ways the project gives a model knowledge:
-
-| Dataset | Method | Where the knowledge lives | Repo |
-|---|---|---|---|
-| Finance | fine-tune Qwen2.5-3B (QLoRA) | adapter weights | Azure-FineTuning-Foundry-Agent |
-| Employee | new model trained from scratch | the model's weights | this repo |
-| HR | RAG | an index, read at inference | Azure-HR-RAG |
-
-This repo stands alone. Its own `terraform/` creates the Azure ML workspace,
-the training cluster, the AI Services account and the Foundry project it
-needs — no other track has to be deployed first. The only thing it takes from
-elsewhere is the ingestion repo's storage account, passed in as two
-variables.
+Training data comes from the
+[Azure-Document-Ingestion](https://github.com/Auxin-io/Azure-Document-Ingestion).
 
 ---
 
@@ -46,17 +24,12 @@ The diagram below shows the workflow of the project.
 
 <img width="4183" height="1377" alt="AI Project#1 - Doc Intel AWS v2 - PreTraining-Workflow" src="https://github.com/user-attachments/assets/8fb7143a-6b8a-4bad-beb4-b87b107d93a3" />
 
-Same shape as the fine-tuning track but nothing is downloaded: `train.py` builds the word
-vocabulary from the rows and trains the 4-layer transformer from random weights (3.2M
+Builds the word vocabulary from the rows and trains the 4-layer transformer from random weights (3.2M
 parameters, 4000 steps, ~77 s on the T4), the checkpoint is registered and served on a CPU
 `Standard_DS1_v2`, and the Foundry agent reaches it through the `askEmployeeModel` OpenAPI
-tool with the project identity's AAD token. Boxes map to Step 1 (data assets), Step 2 (job),
-Step 3 (deployment), Step 4 (agent), Step 5 (Copilot).
+tool with the project identity's AAD token.
 
 ## Azure services used
-
-All of this is created by this repo's own `terraform/` (Step 0), except the
-Blob container, which comes from the ingestion repo.
 
 | Service | What it does in this project |
 |---|---|
@@ -77,30 +50,25 @@ Blob container, which comes from the ingestion repo.
 
 ## Prerequisites
 
-This repo is **self-contained**. It does not need the fine-tuning repo or any
-other track deployed - `terraform/` here creates its own resource group,
-workspace, training cluster, AI Services account and Foundry project.
-
-- The ingestion repo has run (`bash run_all.sh`), so
-  `curated/datasets/closed_book_employee/{train,validation,test}.jsonl` are in
-  its Blob container. `run_all.sh` builds and uploads this set itself; to
-  rebuild it alone, run `build_closed_book.py --dataset employee --upload`.
-- Azure CLI with the ML extension, Terraform >= 1.9, Python 3.11+, `az login`
-- **Owner** on the subscription (this stack creates role assignments)
-- Azure ML quota for `Standard NCASv3_T4 Family`, *or* set
-  `training_vm_size` to a CPU SKU - see Step 0
+- Azure CLI 2.89+ with the ML extension; Terraform >= 1.9; Python 3.11+
+- `az login` into a subscription where you are **Owner** (Terraform and the
+  steps below assign roles)
+- **Azure ML GPU quota** for `Standard NCASv3_T4 Family` in your region. This
+  is separate from the Virtual Machines quota — check and request it before
+  Step 1:
 
 ```bash
-python -m venv .venv-agents
-.venv-agents/Scripts/pip install -r foundry/requirements.txt
+az login
+az extension add -n ml
 ```
 
-On Windows run the commands from Git Bash and put
-`MSYS_NO_PATHCONV=1 PYTHONIOENCODING=utf-8` in front of the Python scripts.
+Portal → **Quotas → Machine Learning → your region → Standard NCASv3_T4
+Family**: if the limit is 0, request 12 before continuing (approved within
+the hour in our case).
 
 ---
 
-## Step 0 — infrastructure
+## Step 1 — infrastructure
 
 ```bash
 cd terraform
@@ -110,24 +78,11 @@ terraform output
 cd ..
 ```
 
-`terraform.tfvars` needs three values - the last two are the only thing this
-repo takes from another repository:
-
-```hcl
-name_prefix                 = "yourprefix"
-ingest_storage_account_name = "<ingestion repo's terraform output storage_account>"
-ingest_resource_group_name  = "<ingestion repo's terraform output resource_group>"
-```
-
 Creates, in `<prefix>-pretrain-rg`: an ML workspace with its storage account,
 Key Vault, App Insights and Log Analytics; a Container Registry; one training
 cluster at min 0 / max 1; an AI Services account with a `gpt-4.1-mini`
 deployment; a Foundry project; a credential-less datastore on the ingestion
 container; and the role assignments that make all of it work without keys.
-
-**No GPU quota?** Set `training_vm_size = "Standard_DS3_v2"`. The cluster
-*name* does not change, so `training/job.yml` needs no edit - `train.py` is
-torch-only and runs on CPU. The 77-second job becomes roughly 40 minutes.
 
 Two things to do after apply. First, attach the registry to the workspace -
 Terraform cannot, because setting `container_registry_id` forces the workspace
@@ -143,55 +98,30 @@ Second, load the resource names the scripts need. No script hardcodes them:
 eval "$(terraform -chdir=terraform output -raw agent_env)"
 ```
 
-Nothing here bills by the hour while idle. The cluster scales to zero; only
-the endpoint in Step 3 runs continuously.
-
 ---
 
-## Step 1 — data
+## Step 2 — data
 
 Register the three Blob files as data assets. They are read through the
-credential-less datastore, so nothing is copied:
+credential-less datastore:
 
 ```bash
 cd data
 az ml data create -f closed_book_train.yml      -g <ml-rg> -w <workspace>
 az ml data create -f closed_book_validation.yml -g <ml-rg> -w <workspace>
 az ml data create -f closed_book_test.yml       -g <ml-rg> -w <workspace>
-```
-
-330 training phrasings over 30 facts (11 per fact), 33 validation, 66 test
-rows using a wrapper the model never trains on. Each row:
-
-```json
-{"task": "recall", "instruction": "How many hours did Jonas Weber work?",
- "input": "", "output": "Jonas Weber (EMP-8373) logged 42.2 hours for the week ending 2026-05-04."}
+cd ..
 ```
 
 ---
 
-## Step 2 — train
+## Step 3 — train
 
 ```bash
 cd training
 JOB=$(az ml job create -f job.yml -g <ml-rg> -w <workspace> --query name -o tsv | tr -d '\r')
-echo "$JOB"      # e.g. calm_ghost_pp48ktjbr6
+echo "$JOB"
 ```
-
-**That printed name is the job id**, and Step 3 needs it to register the
-model. It is a random `adjective_noun_id` string Azure assigns, not the
-display name. To get it back later:
-
-```bash
-JOB=$(az ml job list -g <ml-rg> -w <workspace> \
-  --query "[?status=='Completed'] | [0].name" -o tsv | tr -d '\r')
-```
-
-Follow the run with `az ml job stream -n "$JOB" -g <ml-rg> -w <workspace>` -
-it prints the real error on failure, which `az ml job show --query status`
-never does.
-
-`job.yml` runs `train.py` on `gpu-t4` with only `torch` installed:
 
 | Setting | Value | Why |
 |---|---|---|
@@ -203,71 +133,58 @@ never does.
 | steps / batch | 4000 / 64 | 77 s on the T4 |
 | augmentation | random lower-casing, punctuation, greeting prefixes | so it does not key on exact wording |
 
-The log ends with the scores and five test predictions:
-
-```
-final validation exact match=1.000  test (unseen phrasing) exact match=0.742
-  [ok] I don't have the document to hand. Hugo Lindqvist timesheet hours?
-       -> Hugo Lindqvist (EMP-8582) logged 41.4 hours for the week ending 2026-08-04.
-```
-
-Phases: `Preparing` (image build, ~10 min first time) → `Queued` → `Running`
-(under 2 min). Cost: a few cents.
-
-To try it on a laptop first, the same script runs on CPU against the local
-JSONL from the ingestion repo (~3 min for 300 steps, already ~40 % accurate):
+Watch it:
 
 ```bash
-D=../AWS-Document-Ingestion-Textract/data/closed_book_employee
-python training/train.py --train-data $D/train.jsonl --validation-data $D/validation.jsonl \
-  --test-data $D/test.jsonl --output-dir /tmp/emp --steps 300 --batch-size 32
+az ml job show -n $JOB -g <ml-rg> -w <workspace> --query status -o tsv
 ```
+The step counter is in
+Studio → job → *Outputs + logs → user_logs/std_log.txt*.
 
 ---
 
-## Step 3 — register and serve
+## Step 4 — register and serve
 
 ```bash
 az ml model create -g <ml-rg> -w <workspace> \
   --name employee-from-scratch-model --type custom_model \
   --path "azureml://jobs/$JOB/outputs/model"
 
-cd serving
+cd ../serving
 az ml online-endpoint create   -f endpoint.yml   -g <ml-rg> -w <workspace>
 az ml online-deployment create -f deployment.yml -g <ml-rg> -w <workspace> --all-traffic
 ```
 
-`endpoint.yml` sets `auth_mode: aad_token` — no keys. `deployment.yml` runs
-`score.py` on a **`Standard_DS1_v2`** (1 vCPU, ~USD 0.06/hour): a 3 M-parameter
+`endpoint.yml` sets `auth_mode: aad_token`. `deployment.yml` runs
+`score.py` on a **`Standard_DS1_v2`** instance, a 3 M-parameter
 model needs no GPU and answers in 130–300 ms. The scorer walks the mounted
 model folder for `employee_model.pt`, which carries its own vocabulary and
-architecture config. Deployment takes ~10 minutes.
+architecture config.
 
 Test:
 
 ```bash
-PYTHONIOENCODING=utf-8 python serving/test_endpoint.py
-python serving/test_endpoint.py --ask "What project was Chloe Nguyen on?"
+python serving/test_endpoint.py --ask "How many hours did Jonas Weber work?"
 ```
 
 ```
 Q  How many hours did Jonas Weber work?
-A  Jonas Weber (EMP-8373) logged 42.2 hours for the week ending 2026-05-04.   [301.8 ms]
-Q  What is the status of Aisha Rahman's expense report?
-A  Expense report EXP-70486 for Aisha Rahman is Reimbursed.   [135.1 ms]
+A  Jonas Weber (EMP-8373) logged 42.2 hours for the week ending 2026-05-04.
 ```
 
 ---
 
-## Step 4 — the Foundry agent
+## Step 5 — the Foundry agent
 
 ```bash
-MSYS_NO_PATHCONV=1 PYTHONIOENCODING=utf-8 .venv-agents/Scripts/python foundry/create_agent.py
+cd ../foundry
+python3 -m venv .venv-agents
+source .venv-agents/bin/activate
+pip install -r requirements.txt
+.venv-agents/bin/python create_agent.py
 ```
 
-The script finds the workspace, the AI Services account and the endpoint's
-scoring URI by itself, grants the Foundry project's identity **AzureML Data
-Scientist** on the endpoint if it does not have it, creates (or updates)
+The script creates (or updates)
 `employee-agent` on `gpt-4.1-mini` with the endpoint as an OpenAPI
 tool authenticated by managed identity, then asks three questions:
 
@@ -283,48 +200,16 @@ A  The capital of France is Paris.
    tool called: NO
 ```
 
-`--ask "..."` sends your own question. Re-running updates the agent in place.
-
 **Portal:** https://ai.azure.com → New Foundry → project `<project>` →
 Agents → `employee-agent` → Save as new agent → Playground.
 
-**After migrating.** "Save as new agent" copies the agent into the versioned
-agent API; from then on the copy is independent of the classic one the script
-created. The portal also adds a `web_search` tool to the copy, which can let
-gpt-4.1-mini answer from the web instead of the model - remove it in the
-portal or run the script below, which also does that. Whenever you change
-`INSTRUCTIONS` in `foundry/create_agent.py`, push them to the migrated copy with:
-
-```bash
-MSYS_NO_PATHCONV=1 PYTHONIOENCODING=utf-8 .venv-agents/Scripts/python foundry/publish_version.py
-```
-
-It publishes a new version (`employee-agent:2`, `:3`, ...) with the same model and
-tools; the playground and Copilot pick up the latest version automatically.
-
 ---
 
-## Step 5 — publish to Microsoft 365 Copilot (optional)
+## Step 6 — publish to Microsoft 365 Copilot
 
 In the migrated agent click **Publish → Teams and Microsoft 365**, fill in the
 descriptions, keep the generated bot name, and finish. This creates an Azure
-Bot Service (free F0) and a service principal named
-`<ai-services-account>-<project>-employee-agent-AgentIdentity` that the bot
-runs as. That identity has no roles until you grant them:
-
-```bash
-AIS=$(az cognitiveservices account list -g <ml-rg> --query "[?kind=='AIServices'].id | [0]" -o tsv)
-AGENT_SP=$(az ad sp list --display-name "$(basename $AIS)-<project>-employee-agent-AgentIdentity" --query "[0].id" -o tsv)
-MSYS_NO_PATHCONV=1 az role assignment create --assignee-object-id $AGENT_SP --assignee-principal-type ServicePrincipal \
-  --role 53ca6127-db72-4b80-b1b0-d745d6d5456d --scope $AIS   # Azure AI User / Foundry User
-EP=$(az ml online-endpoint show -n employee-from-scratch -g <ml-rg> -w <workspace> --query id -o tsv)
-MSYS_NO_PATHCONV=1 az role assignment create --assignee-object-id $AGENT_SP --assignee-principal-type ServicePrincipal \
-  --role "AzureML Data Scientist" --scope $EP
-```
-
-Until the roles propagate (a few minutes) the agent appears in Copilot but
-replies with nothing. Then: https://copilot.microsoft.com → Agents →
-`employee-agent` → new chat.
+Bot Service (free F0) and a service principal.
 
 ---
 
@@ -344,23 +229,6 @@ Ben Carter, Aisha Rahman, Elena Petrova.
 | How many hours did Isabel Moreno work? | EMP-9850, 35.7 hours |
 | What is the capital of France? | answered by gpt-4.1-mini, no tool call |
 
-Known limit: an employee who is not in the ten (e.g. "Grace Kim") gets
-another employee's answer instead of a refusal. The training set has one
-refusal handle; a from-scratch model needs many more to learn the pattern.
-The agent adds a one-line caveat when the answer names someone else.
-
----
-
-## What "from scratch" means here — and what it does not
-
-The model learned English word order, the answer templates, every employee's
-id, dates and amounts, and the mapping from question to fact, from 330 rows in
-77 seconds. It knows nothing else: no general vocabulary, no arithmetic, no
-world. It cannot answer a question about an eleventh employee, and it is
-brittle to wording it never saw (74 % on the held-out phrasing vs 100 % on
-seen ones). That is the honest trade-off against the finance track, where
-Qwen brought the language and only the facts were taught.
-
 ---
 
 ## Cost and teardown
@@ -373,11 +241,8 @@ Qwen brought the language and only the facts were taught.
 
 ```bash
 az ml online-endpoint delete -n employee-from-scratch -g <ml-rg> -w <workspace> -y
+cd terraform && terraform destroy  
 ```
-
-Everything else is this repo's own Terraform, so `terraform destroy` in
-`terraform/` removes it. Destroy this stack **before** the ingestion repo's:
-it holds a role assignment and a datastore pointing at that storage account.
 
 ---
 
@@ -399,10 +264,4 @@ foundry/
   publish_version.py             pushes new INSTRUCTIONS to the migrated (versioned) agent
   employee-model.openapi.yaml    the tool definition; servers[] filled in at run time
   requirements.txt
-archive/
-  train_from_scratch_v1_char.py, score_v1_char.py   first attempt: character-level, produced gibberish
-  qwen-lora/                                        the alternative: LoRA on Qwen with the same data
 ```
-
-The tokenizer regex and the model class in `serving/score.py` must stay
-identical to `training/train.py`.
