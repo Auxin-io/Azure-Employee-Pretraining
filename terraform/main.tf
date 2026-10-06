@@ -313,10 +313,20 @@ resource "azurerm_role_definition" "endpoint_scorer" {
   assignable_scopes = [azurerm_machine_learning_workspace.this.id]
 }
 
+# The principal here is the AI SERVICES ACCOUNT's identity, not the project's.
+# The agent's OpenAPI tool calls the endpoint as the account, so granting the
+# project identity - which is what the docs imply and what this used to do -
+# leaves the call refused with "403 Microsoft Entra Token denied by policy"
+# even when the project holds the built-in AzureML Data Scientist. Verified by
+# granting each principal in turn against a live endpoint.
 resource "azurerm_role_assignment" "project_scores_endpoints" {
   scope              = azurerm_machine_learning_workspace.this.id
   role_definition_id = azurerm_role_definition.endpoint_scorer.role_definition_resource_id
-  principal_id       = azapi_resource.project.identity[0].principal_id
+  principal_id       = azurerm_cognitive_account.ai.identity[0].principal_id
+
+  # The role is created moments earlier in the same apply; without this the
+  # assignment can race it.
+  depends_on = [azurerm_role_definition.endpoint_scorer]
 }
 
 # ------------------------------------------------- pull the training image ---
