@@ -172,8 +172,22 @@ rows using a wrapper the model never trains on. Each row:
 
 ```bash
 cd training
-az ml job create -f job.yml -g <ml-rg> -w <workspace> --query name -o tsv
+JOB=$(az ml job create -f job.yml -g <ml-rg> -w <workspace> --query name -o tsv | tr -d '\r')
+echo "$JOB"      # e.g. calm_ghost_pp48ktjbr6
 ```
+
+**That printed name is the job id**, and Step 3 needs it to register the
+model. It is a random `adjective_noun_id` string Azure assigns, not the
+display name. To get it back later:
+
+```bash
+JOB=$(az ml job list -g <ml-rg> -w <workspace> \
+  --query "[?status=='Completed'] | [0].name" -o tsv | tr -d '\r')
+```
+
+Follow the run with `az ml job stream -n "$JOB" -g <ml-rg> -w <workspace>` -
+it prints the real error on failure, which `az ml job show --query status`
+never does.
 
 `job.yml` runs `train.py` on `gpu-t4` with only `torch` installed:
 
@@ -214,7 +228,7 @@ python training/train.py --train-data $D/train.jsonl --validation-data $D/valida
 ```bash
 az ml model create -g <ml-rg> -w <workspace> \
   --name employee-from-scratch-model --type custom_model \
-  --path azureml://jobs/<job>/outputs/model
+  --path "azureml://jobs/$JOB/outputs/model"
 
 cd serving
 az ml online-endpoint create   -f endpoint.yml   -g <ml-rg> -w <workspace>
