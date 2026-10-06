@@ -286,12 +286,25 @@ resource "azurerm_role_definition" "endpoint_scorer" {
   scope       = azurerm_machine_learning_workspace.this.id
   description = "Read and score online endpoints in this workspace. Nothing else."
 
-  # score/action is a CONTROL-plane action, not a data action: the provider
-  # operation list shows no dataActions at all for workspaces/onlineEndpoints.
-  # Putting it under data_actions yields a role that cannot score anything.
+  # Two things this block gets wrong if you trim it further:
+  #
+  # 1. score/action is a CONTROL-plane action, not a data action. The provider
+  #    operation list shows no dataActions at all for workspaces/onlineEndpoints,
+  #    and the built-in AzureML Data Scientist has an empty dataActions too.
+  #    Under data_actions it produces a role that cannot score anything.
+  #
+  # 2. The read has to be the wildcard. Scoring with an Entra token makes the
+  #    front door read more than the endpoint resource, so
+  #    onlineEndpoints/read on its own gets the token presented and then
+  #    refused with "403 Microsoft Entra Token denied by policy". The built-in
+  #    role works because it carries workspaces/*/read.
+  #
+  # The built-in also carries */write, */delete and */action, which would let
+  # the agent's own identity delete the endpoint it calls. That is why this
+  # role exists: same read, one action, no write and no delete.
   permissions {
     actions = [
-      "Microsoft.MachineLearningServices/workspaces/onlineEndpoints/read",
+      "Microsoft.MachineLearningServices/workspaces/*/read",
       "Microsoft.MachineLearningServices/workspaces/onlineEndpoints/score/action",
     ]
     not_actions = []
